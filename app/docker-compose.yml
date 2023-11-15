@@ -1,0 +1,23 @@
+version: '1.0'
+services:
+  db_zdp:
+    image: "redis/redis-stack-server:latest"
+    volumes:
+      - ./redis.conf:/redis-stack.conf
+    deploy:
+      resources:
+        limits:
+          memory: 800M
+    restart: on-failure
+  zdppass-app:
+    image: "zdppass-app"
+    environment:
+      - SERVER_PORT=3800
+      - DB_HOST=db_zdp
+      - DB_PORT=6385
+      - DB_PASS=secretpassword
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+    restart: on-failure
