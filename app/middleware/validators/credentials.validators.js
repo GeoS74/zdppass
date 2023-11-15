@@ -2,7 +2,7 @@ module.exports.key = async (ctx, next) => {
   if (!_checkKey(ctx.params.key)) {
     ctx.throw(400, 'invalid key');
   }
-  ctx.request.body.hostkey = ctx.params.key;
+  ctx.hostkey = ctx.params.key;
   await next();
 };
 
@@ -10,7 +10,7 @@ module.exports.hostkey = async (ctx, next) => {
   if (!_checkHostKey(ctx.request.body?.hostkey)) {
     ctx.throw(400, 'invalid hostkey');
   }
-  ctx.request.body.hostkey = new URL(ctx.request.body.hostkey).host;
+  ctx.hostkey = new URL(ctx.request.body.hostkey).host;
   await next();
 };
 

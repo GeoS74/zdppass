@@ -1,8 +1,8 @@
 module.exports = async (ctx, next) => {
   ctx.data = {
-    hostkey: ctx.request.body.hostkey,
-    login: ctx.request.body.login,
-    pass: ctx.request.body.pass,
+    hostkey: ctx.hostkey || null,
+    login: ctx.request.body?.login || null,
+    pass: ctx.request.body?.pass || null,
   };
 
   await next();
