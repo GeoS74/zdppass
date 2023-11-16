@@ -1,3 +1,7 @@
+// https://developer.chrome.com/docs/extensions/reference/runtime/
+// https://developer.chrome.com/docs/extensions/mv3/messaging/
+
+
 function findLoginInput(e) {
   if(e == window.document.body) {
     return null;
@@ -9,18 +13,34 @@ function findLoginInput(e) {
 const host = new URL(window.location.href).host;
 
 
-fetch(`http://31.129.96.15:3800/api/`)
+var port = chrome.runtime.connect({name: "knockknock"});
+
+port.postMessage({joke: "Knock knock"});
+
+port.onMessage.addListener(function(msg) {
+  console.log(msg);
+  
+  
+});
+
+
+
+
+
+
+// fetch(`https://sgn74.ru`, { mode: 'no-cors'})
+// fetch(`http://31.129.96.15:3800/api/${host}`)
 //   .then(async res => {
 //     if(res.ok) {
-//       window.console.log(await res.json())
+//       window.console.log(await res.text())
 //       return;
 //     }
 
 //     throw new Error(`error status ${res.status}`)
 //   })
-  .catch(error => {
-    window.console.log(error.message)
-  })
+//   .catch(error => {
+//     window.console.log(error.message)
+//   })
 
 
 
