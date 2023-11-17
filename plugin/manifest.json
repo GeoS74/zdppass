@@ -4,35 +4,23 @@
   "description": "Save password for ZDP users",
   "version": "1.0",
   "icons": {
-    "16": "img/32.png",
-    "32": "img/32.png",
-    "48": "img/48.png",
-    "128": "img/128.png"
+    "16": "./img/32.png",
+    "32": "./img/32.png",
+    "48": "./img/48.png",
+    "128": "./img/128.png"
   },
   "action": {
     "default_icon": "./img/128.png"
   },
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "scripting",
-    "webRequest",
-    "declarativeNetRequest",
-    "declarativeNetRequestFeedback",
-    "webNavigation", "notifications"
-  ],
-  "host_permissions": [
-    "http://31.129.96.15:3800/*"
-  ],
+  "permissions": [],
   "background":{
-    "service_worker": "service-worker.js"
+    "service_worker": "./src/service-worker.js"
   },
   "content_scripts": [
     {
-      "js": ["src/index.js"],
+      "js": ["./src/index.js"],
       "matches": [
-        "https://*/*",
-        "http://*/*"
+        "https://*/*"
       ]
     }
   ]
