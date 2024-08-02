@@ -2,12 +2,20 @@ const host = new URL(window.location.href).host;
 
 const port = chrome.runtime.connect({name: host});
 
+let mutationWindow;
+let mutationPassInput;
+
 port.onMessage.addListener((credentials) => {
   if(credentials.hasOwnProperty('error')) {
     return false; 
   }
 
-  new MutationObserver(() => {
+  if(mutationWindow) {
+    mutationWindow.disconnect();
+    mutationWindow = null;
+  }
+
+  mutationWindow = new MutationObserver(() => {
     _credentialsSubstitution(credentials.login, credentials.pass);
   })
     .observe(window.document.body, {
@@ -37,7 +45,12 @@ function _credentialsSubstitution(login, pass) {
   loginInput.value = login;
   passInput.value = pass;
 
-  new MutationObserver(() => {
+  if(mutationPassInput) {
+    mutationPassInput.disconnect();
+    mutationPassInput = null;
+  }
+
+  mutationPassInput = new MutationObserver(() => {
     if(passInput.getAttribute('type') === 'password') {
       return;
     }
