@@ -6,13 +6,15 @@ let mutationWindow;
 let mutationPassInput;
 
 port.onMessage.addListener((credentials) => {
-  if(credentials.hasOwnProperty('error')) {
-    return false; 
-  }
-
   if(mutationWindow) {
     mutationWindow.disconnect();
     mutationWindow = null;
+    mutationPassInput.disconnect();
+    mutationPassInput = null;
+  }
+
+  if(credentials.hasOwnProperty('error')) {
+    return false; 
   }
 
   mutationWindow = new MutationObserver(() => {
