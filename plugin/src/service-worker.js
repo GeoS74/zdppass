@@ -1,25 +1,18 @@
 // const backend = 'http://10.23.20.112:3800/api';
 const backend = 'http://127.0.0.1:3800/api';
 
-// https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=ru
-// async function getCurrentTab() {
-//   let queryOptions = { active: true, lastFocusedWindow: true };
-//   // `tab` will either be a `tabs.Tab` instance or `undefined`.
-//   let [tab] = await chrome.tabs.query(queryOptions);
-//   return tab;
+// лиент при создании соединения прокидывает свойство name 
+// в нём записан хост страницы, открытой в браузере
+// этот host является ключом в коллекции clients
+// значениями в clients являются объекты типа:
+// {
+//   port: ссылка на порт для передачи данных клиенту
+//   credentials: объект с логином и паролем
 // }
-
-
-// let PORT;
 const clients = new Map();
 
 chrome.runtime.onConnect.addListener(async (port) => {
-  console.log(`onConnect`);
-  // console.log(p);
-
-  // PORT = p;
-
-  console.log(`добавляем клиента`);
+  // при каждом новом соединении удалить клиента
   clients.delete(port.name);
    
   const credentials = await _getCredentials(port.name,);
@@ -30,46 +23,28 @@ chrome.runtime.onConnect.addListener(async (port) => {
 });
 
 chrome.tabs.onActivated.addListener(async () => {
-  console.log(`onActivated`);
-  
-   try{
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    // console.log(tab);
-
     const host = new URL(tab.url).host;
 
     if(!clients.has(host)) {
-      console.log(`перевызываем клиента`);
-      await chrome.scripting.executeScript({
+      // ошибки могут возникать если адрес вкладки 
+      // не соответствует маске "host_permissions" в файле манифеста
+      // например вкладка настройки может иметь адрес chrome://settings/
+      chrome.scripting.executeScript({
         target: {tabId: tab.id},
         files: ["src/index.js"],
-      });
+      })
+      .catch(error => console.log(`error: ${error.message}`));
       return;
     }
 
-    console.log(`такой клиент уже есть`);
-
     const credentials = await _getCredentials(host);
-    // console.log(credentials);
     _changeSettingsBrowser(credentials);
 
-    // console.log(clients.get(host).credentials.login);
-    // console.log(credentials.login);
-    // console.log(clients.get(host).credentials.pass);
-    // console.log(credentials.pass);
-    // console.log('````````````````````');
-
     if(!_equalCredentials(clients.get(host).credentials, credentials)) {
-      console.log(`данные изменены`);
-      clients.get(host).credentials = credentials;
+      clients.get(host).credentials = credentials; // обновить логин/пароль
       clients.get(host).port.postMessage(credentials);
     }
-     
-    
-   }
-   catch(error) {
-    console.log(`error activate ${error.message}`)
-   }
 });
 
 function _equalCredentials(c1, c2) {
@@ -95,11 +70,9 @@ function _getCredentials(host) {
 
       throw new Error(`error status ${res.status}`)
     })
-    .catch(error => {
-      return {
-        error: error.message,
-      }
-    })
+    .catch(error => ({
+      error: error.message,
+    }))
 }
 
 // удаляет все пароли сохранённые за последние 10 лет
@@ -114,10 +87,10 @@ function _getCredentials(host) {
 
 // запрет автозаполнения
 function _enabledAutoFill(enabled) {
-  chrome.privacy.services.autofillEnabled.get({}, function (details) {
+  chrome.privacy.services.autofillEnabled.get({}, (details) => {
     if (details.value !== enabled) {
 
-      chrome.privacy.services.autofillEnabled.set({ value: enabled }, function () {
+      chrome.privacy.services.autofillEnabled.set({ value: enabled }, () => {
         if (chrome.runtime.lastError !== undefined) {
           console.log("error setting autoFillEnabled: ", chrome.runtime.lastError);
         }
@@ -128,10 +101,10 @@ function _enabledAutoFill(enabled) {
 
 // запрет сохранения паролей
 function _enabledPasswordSaving(enabled) {
-  chrome.privacy.services.passwordSavingEnabled.get({}, function (details) {
+  chrome.privacy.services.passwordSavingEnabled.get({}, (details) => {
     if (details.value !== enabled) {
 
-      chrome.privacy.services.passwordSavingEnabled.set({ value: enabled }, function () {
+      chrome.privacy.services.passwordSavingEnabled.set({ value: enabled }, () => {
         if (chrome.runtime.lastError !== undefined) {
           console.log("error setting passwordSavingEnabled: ", chrome.runtime.lastError);
         }
