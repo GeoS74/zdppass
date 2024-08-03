@@ -9,38 +9,74 @@ const backend = 'http://127.0.0.1:3800/api';
 //   return tab;
 // }
 
-let port;
 
-chrome.runtime.onConnect.addListener(async (p) => {
-  port = p;
+// let PORT;
+const clients = new Map();
 
-  const credentials = await _getCredentials(port.name);
-  _changerSettingsBrowser(credentials);
+chrome.runtime.onConnect.addListener(async (port) => {
+  console.log(`onConnect`);
+  // console.log(p);
+
+  // PORT = p;
+
+  console.log(`добавляем клиента`);
+  clients.delete(port.name);
+   
+  const credentials = await _getCredentials(port.name,);
+  _changeSettingsBrowser(credentials);
   port.postMessage(credentials);
+
+  clients.set(port.name, {port, credentials});
 });
 
 chrome.tabs.onActivated.addListener(async () => {
-  if(!port) {
-    return;
-  }
+  console.log(`onActivated`);
+  
+   try{
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // console.log(tab);
 
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-
-  // new URL может выбросить исключение
-  try {
     const host = new URL(tab.url).host;
+
+    if(!clients.has(host)) {
+      console.log(`перевызываем клиента`);
+      await chrome.scripting.executeScript({
+        target: {tabId: tab.id},
+        files: ["src/index.js"],
+      });
+      return;
+    }
+
+    console.log(`такой клиент уже есть`);
+
     const credentials = await _getCredentials(host);
+    // console.log(credentials);
+    _changeSettingsBrowser(credentials);
 
-    _changerSettingsBrowser(credentials);
+    // console.log(clients.get(host).credentials.login);
+    // console.log(credentials.login);
+    // console.log(clients.get(host).credentials.pass);
+    // console.log(credentials.pass);
+    // console.log('````````````````````');
 
-    port.postMessage(credentials);
-  }
-  catch (error) {
-    console.log(`error: ${error.message}`)
-  }
+    if(!_equalCredentials(clients.get(host).credentials, credentials)) {
+      console.log(`данные изменены`);
+      clients.get(host).credentials = credentials;
+      clients.get(host).port.postMessage(credentials);
+    }
+     
+    
+   }
+   catch(error) {
+    console.log(`error activate ${error.message}`)
+   }
 });
 
-function _changerSettingsBrowser(credentials) {
+function _equalCredentials(c1, c2) {
+  return c1.login === c2.login && c1.pass === c2.pass;
+}
+
+function _changeSettingsBrowser(credentials) {
   if (!credentials.error) {
     _enabledPasswordSaving(false);
     _enabledAutoFill(false);

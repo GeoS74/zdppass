@@ -1,4 +1,5 @@
-const host = new URL(window.location.href).host;
+// при перевызове этого скрипта все ранее объявленные переменные сохраняются
+let host = new URL(window.location.href).host;
 
 const port = chrome.runtime.connect({name: host});
 
@@ -6,6 +7,9 @@ let mutationWindow;
 let mutationPassInput;
 
 port.onMessage.addListener((credentials) => {
+  console.log(`onMessage`);
+  console.log(credentials);
+
   if(mutationWindow) {
     mutationWindow.disconnect();
     mutationWindow = null;
@@ -28,6 +32,7 @@ port.onMessage.addListener((credentials) => {
 
   _credentialsSubstitution(credentials.login, credentials.pass);
 });
+
 
 function _credentialsSubstitution(login, pass) {
   const passInput = _findPassInput();
