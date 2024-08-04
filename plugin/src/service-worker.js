@@ -14,6 +14,13 @@ const clients = new Map();
 chrome.runtime.onConnect.addListener(async (port) => {
   console.log('onConnect');
 
+  port.onDisconnect.addListener(foo => {
+    console.log('onDisconnect');
+    if(chrome.runtime.lastError) {
+      console.log('onDisconnect error: '+chrome.runtime.lastError.message);
+    }
+  })
+
   chrome.tabs.query({ active: true, currentWindow: true })
   .then (async res => {
     const [tab] = res;
@@ -27,9 +34,9 @@ chrome.runtime.onConnect.addListener(async (port) => {
     
     port.postMessage(credentials);
 
-    // if(clients.get(port.name+tab.id)) {
-    //   await clients.get(port.name+tab.id).port.disconnect();
-    // }
+    if(clients.get(port.name+tab.id)) {
+      await clients.get(port.name+tab.id).port.disconnect();
+    }
 
     clients.set(port.name+tab.id, {port, credentials});
   });
