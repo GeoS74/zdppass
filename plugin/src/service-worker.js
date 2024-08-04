@@ -12,21 +12,38 @@ const backend = 'http://127.0.0.1:3800/api';
 const clients = new Map();
 
 chrome.runtime.onConnect.addListener(async (port) => {
-  // при каждом новом соединении удалить клиента
-  clients.delete(port.name);
-   
-  const credentials = await _getCredentials(port.name,);
-  _changeSettingsBrowser(credentials);
-  port.postMessage(credentials);
+  console.log('onConnect');
 
-  clients.set(port.name, {port, credentials});
+  chrome.tabs.query({ active: true, currentWindow: true })
+  .then (async res => {
+    const [tab] = res;
+
+    console.log(port.name+tab.id);
+    // при каждом новом соединении удалить клиента
+    clients.delete(port.name+tab.id);
+    
+    const credentials = await _getCredentials(port.name);
+    _enableSettingsBrowser(!!credentials.error);
+    
+    port.postMessage(credentials);
+
+    // if(clients.get(port.name+tab.id)) {
+    //   await clients.get(port.name+tab.id).port.disconnect();
+    // }
+
+    clients.set(port.name+tab.id, {port, credentials});
+  });
 });
 
 chrome.tabs.onActivated.addListener(async () => {
+  console.log('onActivated');
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // ERROR при создании новой вкадки
     const host = new URL(tab.url).host;
 
-    if(!clients.has(host)) {
+    if(!clients.has(host+tab.id)) {
       // ошибки могут возникать если адрес вкладки 
       // не соответствует маске "host_permissions" в файле манифеста
       // например вкладка настройки может иметь адрес chrome://settings/
@@ -38,12 +55,13 @@ chrome.tabs.onActivated.addListener(async () => {
       return;
     }
 
+    console.log('old tabs');
     const credentials = await _getCredentials(host);
-    _changeSettingsBrowser(credentials);
+    _enableSettingsBrowser(!!credentials.error);
 
-    if(!_equalCredentials(clients.get(host).credentials, credentials)) {
-      clients.get(host).credentials = credentials; // обновить логин/пароль
-      clients.get(host).port.postMessage(credentials);
+    if(!_equalCredentials(clients.get(host+tab.id).credentials, credentials)) {
+      clients.get(host+tab.id).credentials = credentials; // обновить логин/пароль
+      clients.get(host+tab.id).port.postMessage(credentials);
     }
 });
 
@@ -51,14 +69,9 @@ function _equalCredentials(c1, c2) {
   return c1.login === c2.login && c1.pass === c2.pass;
 }
 
-function _changeSettingsBrowser(credentials) {
-  if (!credentials.error) {
-    _enabledPasswordSaving(false);
-    _enabledAutoFill(false);
-  } else {
-    _enabledPasswordSaving(true);
-    _enabledAutoFill(true);
-  }
+function _enableSettingsBrowser(enable) { // true/false
+  _enabledPasswordSaving(enable);
+  _enabledAutoFill(enable);
 }
 
 function _getCredentials(host) {

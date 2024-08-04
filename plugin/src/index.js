@@ -1,6 +1,9 @@
 // при перевызове этого скрипта все ранее объявленные переменные сохраняются
 let host = new URL(window.location.href).host;
 
+console.log(`started`);
+// console.log(navigator)
+
 const port = chrome.runtime.connect({name: host});
 
 let mutationWindow;
