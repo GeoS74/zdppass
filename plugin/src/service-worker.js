@@ -18,6 +18,15 @@ chrome.runtime.onConnect.addListener(async (port) => {
     console.log('onDisconnect');
     if(chrome.runtime.lastError) {
       console.log('onDisconnect error: '+chrome.runtime.lastError.message);
+
+      // chrome.tabs.query({ active: true, currentWindow: true })
+      // .then (async res => {
+      //   const [tab] = res;
+      //   if(clients.get(port.name+tab.id)) {
+      //     await clients.get(port.name+tab.id).port.disconnect();
+      //   }
+      //   clients.delete(port.name+tab.id);
+      });
     }
   })
 
