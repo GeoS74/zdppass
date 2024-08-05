@@ -1,9 +1,9 @@
 // const backend = 'http://10.23.20.112:3800/api';
 const backend = 'http://127.0.0.1:3800/api';
 
-// лиент при создании соединения прокидывает свойство name 
+// клиент при создании соединения прокидывает свойство name 
 // в нём записан хост страницы, открытой в браузере
-// этот host является ключом в коллекции clients
+// этот host в сочетании с id вкладки является ключом в коллекции clients
 // значениями в clients являются объекты типа:
 // {
 //   port: ссылка на порт для передачи данных клиенту
@@ -12,82 +12,113 @@ const backend = 'http://127.0.0.1:3800/api';
 const clients = new Map();
 
 chrome.runtime.onConnect.addListener(async (port) => {
-  console.log('onConnect');
 
-  port.onDisconnect.addListener(foo => {
-    console.log('onDisconnect');
-    if(chrome.runtime.lastError) {
-      console.log('onDisconnect error: '+chrome.runtime.lastError.message);
-
-      // chrome.tabs.query({ active: true, currentWindow: true })
-      // .then (async res => {
-      //   const [tab] = res;
-      //   if(clients.get(port.name+tab.id)) {
-      //     await clients.get(port.name+tab.id).port.disconnect();
-      //   }
-      //   clients.delete(port.name+tab.id);
-      });
+  port.onDisconnect.addListener(() => {
+    if (chrome.runtime.lastError) {
+      console.log('onDisconnect error: ' + chrome.runtime.lastError.message);
     }
-  })
+  });
 
   chrome.tabs.query({ active: true, currentWindow: true })
-  .then (async res => {
-    const [tab] = res;
+    .then(async res => {
+      const [tab] = res;
 
-    console.log(port.name+tab.id);
-    // при каждом новом соединении удалить клиента
-    clients.delete(port.name+tab.id);
-    
-    const credentials = await _getCredentials(port.name);
-    _enableSettingsBrowser(!!credentials.error);
-    
-    port.postMessage(credentials);
+      // при каждом новом соединении удалить клиента
+      clients.delete(port.name + tab.id);
 
-    if(clients.get(port.name+tab.id)) {
-      await clients.get(port.name+tab.id).port.disconnect();
-    }
+      const credentials = await _getCredentials(port.name);
+      _enableSettingsBrowser(!!credentials.error);
 
-    clients.set(port.name+tab.id, {port, credentials});
-  });
+      port.postMessage(credentials);
+
+      clients.set(port.name + tab.id, { port, credentials });
+    });
 });
 
 chrome.tabs.onActivated.addListener(async () => {
-  console.log('onActivated');
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  // ERROR при создании новой вкадки tab.url может быть пустым
+  if (!tab.url) return;
 
-    // ERROR при создании новой вкадки
-    const host = new URL(tab.url).host;
+  const host = new URL(tab.url).host;
 
-    if(!clients.has(host+tab.id)) {
-      // ошибки могут возникать если адрес вкладки 
-      // не соответствует маске "host_permissions" в файле манифеста
-      // например вкладка настройки может иметь адрес chrome://settings/
-      chrome.scripting.executeScript({
-        target: {tabId: tab.id},
-        files: ["src/index.js"],
-      })
+  if (!clients.has(host + tab.id)) {
+    // ошибки могут возникать если адрес вкладки 
+    // не соответствует маске "host_permissions" в файле манифеста
+    // например вкладка настройки может иметь адрес chrome://settings/
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["./src/index.js"],
+    })
       .catch(error => console.log(`error: ${error.message}`));
-      return;
-    }
+    return;
+  }
 
-    console.log('old tabs');
-    const credentials = await _getCredentials(host);
-    _enableSettingsBrowser(!!credentials.error);
+  const credentials = await _getCredentials(host);
+  _enableSettingsBrowser(!!credentials.error);
 
-    if(!_equalCredentials(clients.get(host+tab.id).credentials, credentials)) {
-      clients.get(host+tab.id).credentials = credentials; // обновить логин/пароль
-      clients.get(host+tab.id).port.postMessage(credentials);
+  // проверка изменения пароля
+  if (!_equalCredentials(clients.get(host + tab.id).credentials, credentials)) {
+    clients.get(host + tab.id).credentials = credentials; // обновить логин/пароль
+    clients.get(host + tab.id).port.postMessage(credentials);
+  }
+});
+
+chrome.action.onClicked.addListener((tab) => {
+  // ERROR при создании новой вкадки tab.url может быть пустым
+  if (!tab.url) return;
+
+  const host = new URL(tab.url).host;
+  const credentials = clients.get(host + tab.id)?.credentials;
+
+  // ошибки могут возникать если адрес вкладки 
+  // не соответствует маске "host_permissions" в файле манифеста
+  // например вкладка настройки может иметь адрес chrome://settings/
+  chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    // files: ['./src/popup.js'],
+    args: [{ credentials }],
+    func: async ({ credentials }) => {
+      if (credentials.error) {
+        alert('Для этого сайта данных нет');
+        return;
+      }
+
+      if (credentials.hostkey === 'www.dellin.ru') {
+        const isLogin = confirm('Для этого сайта есть логин/пароль.\nВыполнить вход?');
+        if (!isLogin) {
+          return;
+        }
+
+        fetch(`https://www.dellin.ru/auth/login/`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Sec-Fetch-Mode': 'same-origin',
+            'X-Login': credentials.login,
+            'X-Password': credentials.pass
+          },
+        })
+          .then(res => {
+            if (res.ok) {
+              document.location.reload();
+              return;
+            }
+            throw new Error(res.status)
+          })
+          .catch(e => console.log('error: ' + e.message));
+        return;
+      }
+
+      alert('Для этого сайта есть логин/пароль');
     }
+  })
+    .catch(error => console.log(`error: ${error.message}`));;
 });
 
 function _equalCredentials(c1, c2) {
   return c1.login === c2.login && c1.pass === c2.pass;
-}
-
-function _enableSettingsBrowser(enable) { // true/false
-  _enabledPasswordSaving(enable);
-  _enabledAutoFill(enable);
 }
 
 function _getCredentials(host) {
@@ -104,15 +135,10 @@ function _getCredentials(host) {
     }))
 }
 
-// удаляет все пароли сохранённые за последние 10 лет
-// function _removePasswords(){
-//   const millisecondsPerWeek = 1000 * 60 * 60 * 24 * 365 * 10;
-//     chrome.browsingData.removePasswords({
-//       "since": (new Date()).getTime() - millisecondsPerWeek
-//     }, () => {
-//       console.log('clean password')
-//     });
-// }
+function _enableSettingsBrowser(enable) { // true/false
+  _enabledPasswordSaving(enable);
+  _enabledAutoFill(enable);
+}
 
 // запрет автозаполнения
 function _enabledAutoFill(enabled) {
@@ -142,10 +168,3 @@ function _enabledPasswordSaving(enabled) {
   });
 }
 
-// контроль изменений состояний
-// chrome.privacy.services.passwordSavingEnabled.onChange.addListener(
-//   function (details) {
-//     console.log('toggle')
-//     console.log(details.value);
-//   }
-// );
