@@ -1,4 +1,5 @@
-let host = new URL(window.location.href).host;
+(() => {
+  let host = new URL(window.location.href).host;
 
 const port = chrome.runtime.connect({ name: host });
 
@@ -47,6 +48,11 @@ function _credentialsSubstitution(login, pass) {
   loginInput.value = login;
   passInput.value = pass;
 
+  // генерация события специяально для сайта korona-auto
+  let event = new Event("input");
+  loginInput.dispatchEvent(event);
+  passInput.dispatchEvent(event);
+
   if (mutationPassInput) {
     mutationPassInput.disconnect();
     mutationPassInput = null;
@@ -78,3 +84,4 @@ function _findLoginInput(e) {
   }
   return e.querySelector('input[type=email]') || e.querySelector('input[type=text]') || _findLoginInput(e.parentNode);
 }
+})();
