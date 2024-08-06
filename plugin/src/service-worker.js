@@ -117,7 +117,10 @@ chrome.action.onClicked.addListener(async (tab) => {
             }
             throw new Error(res.status)
           })
-          .catch(e => console.log('error: ' + e.message));
+          .catch(e => {
+            console.log('error: ' + e.message);
+            alert('Ошибка авторизации');
+          });
         return;
       }
 
