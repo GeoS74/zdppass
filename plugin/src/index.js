@@ -1,81 +1,98 @@
-(() => {
-  let host = new URL(window.location.href).host;
+// в контент-скрипте нельзя использовать глобальные переменные!!!
+// сервис-воркер может "заснуть" (читай про жизненный цикл сервис-воркера),
+// это приводит к потере порта соединения, поэтому для восстановления канала связи 
+// сервис-воркер перезапустит контент-скрипт.
+// В случае если в контент-скрипте используется глобальная переменная,
+// например есть объявление const port = ... 
+// то повторный вызов контент-скрипта сервис-воркером приведёт к ошибке декларирования переменной,
+// т.к. переменная  const port = ... уже была ранее объявлена.
+// Чтобы избежать этой ситуации используется объект chrome в который добавляется кастомный объект
+// следующего вида:
+//
+//   chrome.custom = {
+//     port - канал связи с сервис-воркером
+//     mutationWindow - объект MutationObserver, наблюдающий за window.document.body
+//     mutationPassInput - объект MutationObserver, наблюдающий за полем ввода пароля
+//   }
+//
+// объект chrome изолирован для каждой вкладки браузера
+//
+// можно было бы использовать изоляцию контекста выполнения (() => {...})()
+// но в этом случае потенциально могут возникнуть проблемы с утечкой памяти
 
-const port = chrome.runtime.connect({ name: host });
+if (!chrome.custom) {
+  chrome.custom = {};
+}
 
-let mutationWindow;
-let mutationPassInput;
+chrome.custom.port = chrome.runtime.connect({ name: new URL(window.location.href).host });
 
-port.onMessage.addListener((credentials) => {
-  if (mutationWindow) {
-    mutationWindow.disconnect();
-    mutationWindow = null;
-    mutationPassInput.disconnect();
-    mutationPassInput = null;
+chrome.custom.port.onMessage.addListener((credentials) => {
+  if (chrome.custom.mutationWindow) {
+    chrome.custom.mutationWindow.disconnect();
+    chrome.custom.mutationWindow = null;
+    _clearMutationPassInput();
   }
 
   if (credentials.hasOwnProperty('error')) {
     return false;
   }
 
-  mutationWindow = new MutationObserver(() => {
+  chrome.custom.mutationWindow = new MutationObserver(() => {
     _credentialsSubstitution(credentials.login, credentials.pass);
-  })
-    .observe(window.document.body, {
-      attributes: false,
-      childList: true,
-      subtree: true,
-    });
+  });
+  chrome.custom.mutationWindow.observe(window.document.body, {
+    attributes: false,
+    childList: true,
+    subtree: true,
+  });
 
   _credentialsSubstitution(credentials.login, credentials.pass);
 });
 
 function _credentialsSubstitution(login, pass) {
-  const passInput = _findPassInput();
-  if (!passInput) {
-    return;
-  }
+  const passInputs = _findPassInput();
 
-  const loginInput = _findLoginInput(passInput)
+  _clearMutationPassInput();
 
-  if (!loginInput) {
-    return;
-  }
+  for (let passInput of passInputs) {
+    const loginInput = _findLoginInput(passInput);
+    if (!loginInput) {
+      continue;
+    }
 
-  loginInput.setAttribute('readonly', 'true');
-  passInput.setAttribute('readonly', 'true');
-
-  loginInput.value = login;
-  passInput.value = pass;
-
-  // генерация события специяально для сайта korona-auto
-  let event = new Event("input");
-  loginInput.dispatchEvent(event);
-  passInput.dispatchEvent(event);
-
-  if (mutationPassInput) {
-    mutationPassInput.disconnect();
-    mutationPassInput = null;
-  }
-
-  mutationPassInput = new MutationObserver(() => {
     loginInput.value = login;
     passInput.value = pass;
 
-    if (passInput.getAttribute('type') === 'password') {
-      return;
-    }
-    passInput.setAttribute('type', 'password');
-  })
-    .observe(passInput, {
+    loginInput.setAttribute('readonly', 'true');
+    passInput.setAttribute('readonly', 'true');
+
+    // генерация события специяально для сайта korona-auto
+    const event = new Event("input");
+    loginInput.dispatchEvent(event);
+    passInput.dispatchEvent(event);
+
+    const m = new MutationObserver(() => {
+      if (passInput.getAttribute('type') === 'password') {
+        return;
+      }
+      passInput.setAttribute('type', 'password');
+    });
+    m.observe(passInput, {
       attributes: true,
       childList: false,
       subtree: false,
     });
+    chrome.custom.mutationPassInput.push(m);
+  }
+}
+
+function _clearMutationPassInput() {
+  chrome.custom?.mutationPassInput?.map(m => m.disconnect());
+  chrome.custom.mutationPassInput = [];
 }
 
 function _findPassInput() {
-  return document.querySelector('input[type=password]');
+  return document.querySelectorAll('input[type=password]');
 }
 
 function _findLoginInput(e) {
@@ -84,4 +101,3 @@ function _findLoginInput(e) {
   }
   return e.querySelector('input[type=email]') || e.querySelector('input[type=text]') || _findLoginInput(e.parentNode);
 }
-})();

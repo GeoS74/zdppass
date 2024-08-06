@@ -9,6 +9,10 @@ const backend = 'http://127.0.0.1:3800/api';
 //   port: ссылка на порт для передачи данных клиенту
 //   credentials: объект с логином и паролем
 // }
+//
+// сервис-воркер может "заснуть" (читай про жизненный цикл сервис-воркера),
+// это приводит к тому что clients инициируется заново
+
 const clients = new Map();
 
 chrome.runtime.onConnect.addListener(async (port) => {
@@ -65,12 +69,13 @@ chrome.tabs.onActivated.addListener(async () => {
   }
 });
 
-chrome.action.onClicked.addListener((tab) => {
+chrome.action.onClicked.addListener(async (tab) => {
   // ERROR при создании новой вкадки tab.url может быть пустым
   if (!tab.url) return;
 
   const host = new URL(tab.url).host;
-  const credentials = clients.get(host + tab.id)?.credentials;
+  // const credentials = clients.get(host + tab.id)?.credentials;
+  const credentials = await _getCredentials(host);
 
   // ошибки могут возникать если адрес вкладки 
   // не соответствует маске "host_permissions" в файле манифеста
@@ -80,6 +85,11 @@ chrome.action.onClicked.addListener((tab) => {
     // files: ['./src/popup.js'],
     args: [{ credentials }],
     func: async ({ credentials }) => {
+      if (credentials.error === 'Failed to fetch') {
+        alert('Нет связи с сервером');
+        return;
+      }
+
       if (credentials.error) {
         alert('Для этого сайта данных нет');
         return;
@@ -167,4 +177,3 @@ function _enabledPasswordSaving(enabled) {
     }
   });
 }
-
