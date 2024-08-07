@@ -12,10 +12,11 @@
 //   chrome.custom = {
 //     port - канал связи с сервис-воркером
 //     mutationWindow - объект MutationObserver, наблюдающий за window.document.body
-//     mutationPassInput - объект MutationObserver, наблюдающий за полем ввода пароля
+//     mutationPassInput - Map c объектами MutationObserver, наблюдающий за полями ввода пароля
 //   }
 //
-// объект chrome изолирован для каждой вкладки браузера
+// Прим.: на одной странице может быть несколько форм ввода учётных данных
+// Прим.: объект chrome изолирован для каждой вкладки браузера
 //
 // можно было бы использовать изоляцию контекста выполнения (() => {...})()
 // но в этом случае потенциально могут возникнуть проблемы с утечкой памяти
@@ -43,7 +44,7 @@ chrome.custom.port.onMessage.addListener((credentials) => {
   chrome.custom.mutationWindow.observe(window.document.body, {
     attributes: false,
     childList: true,
-    subtree: true,
+    subtree: true, // true ???
   });
 
   _credentialsSubstitution(credentials.login, credentials.pass);
@@ -52,24 +53,22 @@ chrome.custom.port.onMessage.addListener((credentials) => {
 function _credentialsSubstitution(login, pass) {
   const passInputs = _findPassInput();
 
-  _clearMutationPassInput();
-
   for (let passInput of passInputs) {
     const loginInput = _findLoginInput(passInput);
     if (!loginInput) {
       continue;
     }
 
+    const event = new Event("input", { bubbles: true });
+
     loginInput.value = login;
+    loginInput.dispatchEvent(event);
+
     passInput.value = pass;
+    passInput.dispatchEvent(event);
 
     loginInput.setAttribute('readonly', 'true');
     passInput.setAttribute('readonly', 'true');
-
-    // генерация события специяально для сайта korona-auto
-    const event = new Event("input");
-    loginInput.dispatchEvent(event);
-    passInput.dispatchEvent(event);
 
     const m = new MutationObserver(() => {
       if (passInput.getAttribute('type') === 'password') {
@@ -82,13 +81,30 @@ function _credentialsSubstitution(login, pass) {
       childList: false,
       subtree: false,
     });
-    chrome.custom.mutationPassInput.push(m);
+
+    chrome.custom.mutationPassInput?.get(_generateKeyPassInput(passInput))?.disconnect();
+    _addMutationPassInput(passInput, m);
   }
 }
 
+function _generateKeyPassInput(passInput) {
+  return `pass_${passInput.getAttribute('id') || '_'}${passInput.getAttribute('name') || '_'}`;
+}
+
+function _addMutationPassInput(passInput, observer) {
+  if (!chrome.custom?.mutationPassInput?.size) {
+    chrome.custom.mutationPassInput = new Map();
+  }
+  chrome.custom.mutationPassInput.set(_generateKeyPassInput(passInput), observer);
+}
+
 function _clearMutationPassInput() {
-  chrome.custom?.mutationPassInput?.map(m => m.disconnect());
-  chrome.custom.mutationPassInput = [];
+  if (chrome.custom.mutationPassInput?.size) {
+    for (const m of chrome.custom.mutationPassInput.values()) {
+      m.disconnect();
+    }
+  }
+  chrome.custom.mutationPassInput = new Map();
 }
 
 function _findPassInput() {

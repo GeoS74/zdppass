@@ -1,5 +1,5 @@
 // const backend = 'http://10.23.20.112:3800/api';
-const backend = 'http://127.0.0.1:3800/api';
+const backend = 'http://192.168.0.121:3800/api';
 
 // клиент при создании соединения прокидывает свойство name 
 // в нём записан хост страницы, открытой в браузере
@@ -95,34 +95,36 @@ chrome.action.onClicked.addListener(async (tab) => {
         return;
       }
 
-      if (credentials.hostkey === 'www.dellin.ru') {
-        const isLogin = confirm('Для этого сайта есть логин/пароль.\nВыполнить вход?');
-        if (!isLogin) {
-          return;
-        }
+      // пример автоматической авторизации
+      //
+      // if (credentials.hostkey === 'www.dellin.ru') {
+      //   const isLogin = confirm('Для этого сайта есть логин/пароль.\nВыполнить вход?');
+      //   if (!isLogin) {
+      //     return;
+      //   }
 
-        fetch(`https://www.dellin.ru/auth/login/`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Sec-Fetch-Mode': 'same-origin',
-            'X-Login': credentials.login,
-            'X-Password': credentials.pass
-          },
-        })
-          .then(res => {
-            if (res.ok) {
-              document.location.reload();
-              return;
-            }
-            throw new Error(res.status)
-          })
-          .catch(e => {
-            console.log('error: ' + e.message);
-            alert('Ошибка авторизации');
-          });
-        return;
-      }
+      //   fetch(`https://www.dellin.ru/auth/login/`, {
+      //     method: 'POST',
+      //     headers: {
+      //       'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      //       'Sec-Fetch-Mode': 'same-origin',
+      //       'X-Login': credentials.login,
+      //       'X-Password': credentials.pass
+      //     },
+      //   })
+      //     .then(res => {
+      //       if (res.ok) {
+      //         document.location.reload();
+      //         return;
+      //       }
+      //       throw new Error(res.status)
+      //     })
+      //     .catch(e => {
+      //       console.log('error: ' + e.message);
+      //       alert('Ошибка авторизации');
+      //     });
+      //   return;
+      // }
 
       alert('Для этого сайта есть логин/пароль');
     }
